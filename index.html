@@ -62,6 +62,21 @@
       button:hover {
          background-color: #45a049;
       }
+      
+      button:disabled {
+         background-color: #cccccc;
+         cursor: not-allowed;
+      }
+
+      #mensajeError1, #mensajeError2 {
+         color: red;
+         font-size: 12px;
+         margin: 0 20px 0px 10px;
+      }
+
+      #etiqueta, #etiqueta2 {
+         margin: 10px 0 10px 0;
+      }
 
       @media (max-width: 600px) {
          form {
@@ -103,6 +118,7 @@
       let usuariosConCursos = [];
       let alumnosConCurso = [];
       let resuiltadosImpresos = false;
+      let arrayTagsBusqueda = [];
 
 
       //crea las options del desplegale de cursos
@@ -121,19 +137,61 @@
 
       function botonEnviar() {
          usuariosFiltrados = [];
+
          let divProgreso = document.getElementById("resultado");
          let loadingImg = document.createElement("img")
          loadingImg.classList.add("loadingImg");
 
-         loadingImg.src = "./loading.gif";
+         // Limpiar el contenido previo
+         divProgreso.innerHTML = '';
 
+         // Limpiar variables
+         usuariosFiltrados = [];
+         usuariosConCursos = [];
+         alumnosConCurso = [];
+         arrayDefinitivo = [];
+
+         // Limpiar mensajes de error
+         document.getElementById("etiqueta").style.borderColor = "#ccc";
+         document.getElementById("etiqueta2").style.borderColor = "#ccc";
+         document.getElementById("mensajeError1").textContent = "";
+         document.getElementById("mensajeError2").textContent = "";
 
          divProgreso.appendChild(loadingImg);
-         etiqueta = document.getElementById("etiqueta").value;
+         etiqueta = document.getElementById("etiqueta").value.toUpperCase();
+         etiqueta2 = document.getElementById("etiqueta2").value.toUpperCase();
+
+         arrayTagsBusqueda.push(etiqueta, etiqueta2);
+
          selectorCursos = document.getElementById("selectorCursos").value;
+         selectorCursos = selectorCursos.charAt(0).toLowerCase() + selectorCursos.replaceAll(' ', '-').slice(1);
+         console.log(selectorCursos);
 
-         searchUser();
+         if (etiqueta === "" && etiqueta2 === "") {
+            // Bordes rojos
+            document.getElementById("etiqueta").style.borderColor = "red";
+            document.getElementById("etiqueta2").style.borderColor = "red";
+            document.getElementById("mensajeError1").textContent = "Campo obligatorio";
+            document.getElementById("mensajeError2").textContent = "Campo obligatorio";
+            return;
+         } else if (etiqueta === "") {
+            // Bordes rojos
+            document.getElementById("etiqueta").style.borderColor = "red";
+            document.getElementById("mensajeError1").textContent = "Campo obligatorio";
+            return;
+         }else if(etiqueta2 === "") {
+            // Bordes rojos
+            document.getElementById("etiqueta2").style.borderColor = "red";
+            document.getElementById("mensajeError2").textContent = "Campo obligatorio";
+            return; 
+         }else {
+            // Bloquear el botón mientras se realiza la búsqueda
+            document.querySelector('button').disabled = true;
+            loadingImg.src = "./loading.gif";
+            searchUser();
+         }
 
+         
       }
 
       // hace fetch al meta para saber cuantas vueltas tiene que dar para traer todos los usuarios
@@ -174,7 +232,7 @@
             );
          }
 
-         Promise.all(fetchPromises)
+         Promise.allSettled(fetchPromises)
             .then(() => {
             });
       }
@@ -191,12 +249,13 @@
                      let curso = data.data[j].id;
                      if (!cursos.includes(curso)) {
                         cursos.push(curso);
+
                      }
                   }
                });
             promises.push(promise);
          }
-         Promise.all(promises).then(() => {
+         Promise.allSettled(promises).then(() => {
             añadirCursoAlaLista();
 
          });
@@ -206,24 +265,21 @@
 
       function añadirCursoAlaLista() {
          let select = document.getElementById("selectorCursos");
+
          for (let i = 0; i < cursos.length; i++) {
             let option = document.createElement("option");
             option.value = cursos[i]; // Debes usar cursos[i] en lugar de curso
-            option.textContent = cursos[i]; // Debes usar cursos[i] en lugar de curso
+            option.textContent = cursos[i].charAt(0).toUpperCase() + cursos[i].replaceAll('-', ' ').slice(1); // Debes usar cursos[i] en lugar de curso
             select.appendChild(option);
          }
       }
 
       // busca los usuarios que tengan la etiqueta que se le pasa por parametro y se imprimen por consola
-
       function searchUser() {
-
-         usuarios.forEach(user => {
-            user.tags.forEach(tag => {
-               if (tag === etiqueta) {
-                  usuariosFiltrados.push(user);
-               }
-            });
+         usuarios.filter(user => {
+            if (user.tags.includes(etiqueta) && user.tags.includes(etiqueta2)) {
+               usuariosFiltrados.push(user);
+            }
          });
 
          console.log(usuariosFiltrados);
@@ -242,7 +298,7 @@
 
 
          for (let i = 0; i < usuariosFiltrados.length; i++) {
-            await delay(100);
+            await delay(1);
 
             try {
                let response = await fetch(`${url}/v2/users/${usuariosFiltrados[i].id}/courses`, requestOptions);
@@ -253,7 +309,7 @@
                let listadoCursosPorUsuario = []; // Inicializar aquí para cada usuario
 
                // Recorrer cada curso y extraer la información necesaria
-               data.data.forEach(cursoData => {
+               data.data.filter(cursoData => {
                   let curso = cursoData.course.id;
                   listadoCursosPorUsuario.push(curso);
                });
@@ -295,7 +351,7 @@
          let progreso = [];
 
          for (let i = 0; i < alumnosConCurso.length; i++) {
-            await delay(100); // Esperar 100ms entre cada solicitud
+            await delay(1); // Esperar 100ms entre cada solicitud
             try {
                let response = await fetch(`${url}/v2/users/${alumnosConCurso[i].id}/courses/${selectorCursos}/progress`, requestOptions);
                if (!response.ok) throw new Error('Respuesta de red no fue ok');
@@ -320,20 +376,32 @@
 
          // Una vez todas las solicitudes se han completado y procesado, actualizar el DOM
          divProgreso.innerHTML = ''; // Limpiar el contenido previo
-         progreso.forEach(user => {
-            let divUsuario = document.createElement("div");
-            divUsuario.classList.add("progresoUsuario");
-            divUsuario.innerHTML = `
-            <h3>${user.nombre}</h3>
-            <p>Status: ${user.info.status}</p>
-            <p>Completado: ${user.info.completado}</p>
-            <p>Progreso: ${user.info.progreso}%</p>
-            <p>Puntuación: ${user.info.puntuacion}%</p>
-            <p>Tiempo en curso: ${user.info.tiempo} horas</p>
-        `;
-            divProgreso.appendChild(divUsuario);
-         });
+         
+         if(progreso.length === 0){
+            divProgreso.innerHTML = '<p>No se encontraron resultados</p>';
+         } else {
+            divProgreso.innerHTML = '<h2>Se han encontrado ' + progreso.length + ' resultados</h2>';
+            progreso.forEach(user => {
+               let divUsuario = document.createElement("div");
+               divUsuario.classList.add("progresoUsuario");
+               divUsuario.innerHTML = `
+               <h3>${user.nombre}</h3>
+               <p>Status: ${user.info.status}</p>
+               <p>Completado: ${user.info.completado}</p>
+               <p>Progreso: ${user.info.progreso}%</p>
+               <p>Puntuación: ${user.info.puntuacion}</p>
+               <p>Tiempo en curso: ${Math.trunc(user.info.tiempo/60)} min</p>
+         `;
+               divProgreso.appendChild(divUsuario);
+            });
+         }
+
+         // Desbloquear el botón una vez se han mostrado los resultados
+         document.querySelector('button').disabled = false;
+
       }
+
+      // Funcion 
 
 
 
@@ -362,10 +430,11 @@
 
    </script>
    <form action="formularioPrincipal" method="POST">
-      <label for="etiqueta">Etiqueta:</label>
+      <label for="etiqueta">Etiquetas:</label>
       <input type="text" name="etiqueta" id="etiqueta">
-      <br>
-      <label for="curseID">ID-Curso:</label>
+      <p id="mensajeError1"></p>
+      <input type="text" name="etiqueta2" id="etiqueta2">
+      <p id="mensajeError2"></p>
       <label for="selectorCursos">Lista de Cursos:</label>
       <select name="selectorCursos" id="selectorCursos">
          <option value="default">Default</option>
